@@ -82,7 +82,7 @@ export default function PortfolioDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600">
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-2 bg-clip-text  ">
             Stock Portfolio Tracker
           </h1>
           <p className="text-lg text-gray-600">
