@@ -10,7 +10,7 @@ const StockSchema = z.object({
 });
 
 // In-memory storage (replace with a database in production)
-let stocks: any[] = [];
+export let stocks: any[] = [];
 
 export async function GET() {
   try {
