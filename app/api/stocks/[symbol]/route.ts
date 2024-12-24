@@ -26,7 +26,7 @@ export async function DELETE(
     const symbolToDelete = params.symbol.toUpperCase();
     const initialLength = stocks.length;
     
-    stocks = stocks.filter(stock => stock.symbol !== symbolToDelete);
+    stocks.splice(0, stocks.length, ...stocks.filter(stock => stock.symbol !== symbolToDelete));
     
     if (stocks.length === initialLength) {
       return NextResponse.json(
