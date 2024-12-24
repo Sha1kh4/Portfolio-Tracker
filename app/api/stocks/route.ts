@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { fetchStockPrice } from '@/lib/stockUtils';
+import { stocks } from '@/lib/store';
 
 // Validation schema for stock data
 const StockSchema = z.object({
@@ -9,12 +10,8 @@ const StockSchema = z.object({
   purchasePrice: z.number().positive(),
 });
 
-// In-memory storage (replace with a database in production)
-export let stocks: any[] = [];
-
 export async function GET() {
   try {
-    // Get current prices for all stocks
     const stocksWithPrices = await Promise.all(
       stocks.map(async (stock) => {
         try {

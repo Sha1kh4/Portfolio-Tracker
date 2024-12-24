@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { fetchStockPrice } from '@/lib/stockUtils';
-import { stocks } from '../route';  // Import the stocks array
+import { stocks } from '@/lib/store';
+
+type Params = Promise<{ symbol: string }>;
 
 export async function GET(
   request: Request,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Params }
 ) {
   try {
-    const currentPrice = await fetchStockPrice(params.symbol);
+    const symbol = (await params).symbol;
+    const currentPrice = await fetchStockPrice(symbol);
     return NextResponse.json({ price: currentPrice });
   } catch (error) {
     console.error('Failed to fetch stock price:', error);
@@ -20,10 +23,11 @@ export async function GET(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Params }
 ) {
   try {
-    const symbolToDelete = params.symbol.toUpperCase();
+    const symbol = (await params).symbol;
+    const symbolToDelete = symbol.toUpperCase();
     const initialLength = stocks.length;
     
     stocks.splice(0, stocks.length, ...stocks.filter(stock => stock.symbol !== symbolToDelete));
