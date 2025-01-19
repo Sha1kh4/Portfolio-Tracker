@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { PortfolioSummary, stockApi } from '../services/api';
 import AddStockForm from './AddStockForm';
 import StockList from './StockList';
 import { getStocks, addStock, deleteStock } from '@/lib/api';
@@ -12,40 +13,38 @@ interface Stock {
   currentPrice?: number;
 }
 
-export default function PortfolioDashboard() {
+const PortfolioDashboard: React.FC = () => {
+  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stocks, setStocks] = useState<Stock[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function loadStocks() {
-      try {
-        const fetchedStocks = await getStocks();
-        setStocks(fetchedStocks);
-      } catch (error) {
-        console.error('Failed to load stocks:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
+    fetchSummary();
     loadStocks();
   }, []);
 
-  const calculateTotalValue = () => {
-    return stocks.reduce((total, stock) => {
-      const currentValue = stock.currentPrice 
-        ? stock.shares * stock.currentPrice 
-        : stock.shares * stock.purchasePrice;
-      return total + currentValue;
-    }, 0).toFixed(2);
+  const fetchSummary = async () => {
+    try {
+      setLoading(true);
+      const data = await stockApi.getPortfolioSummary();
+      setSummary(data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch portfolio summary');
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const calculateTotalGainLoss = () => {
-    return stocks.reduce((total, stock) => {
-      if (!stock.currentPrice) return total;
-      const gainLoss = (stock.currentPrice - stock.purchasePrice) * stock.shares;
-      return total + gainLoss;
-    }, 0).toFixed(2);
+  const loadStocks = async () => {
+    try {
+      const fetchedStocks = await getStocks();
+      setStocks(fetchedStocks);
+    } catch (error) {
+      console.error('Failed to load stocks:', error);
+    }
   };
 
   const handleAddStock = async (newStock: Omit<Stock, 'currentPrice'>) => {
@@ -68,15 +67,9 @@ export default function PortfolioDashboard() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-indigo-500 border-t-transparent"></div>
-      </div>
-    );
-  }
-
-  const totalGainLoss = Number(calculateTotalGainLoss());
+  if (loading) return <div className="text-center p-4">Loading portfolio data...</div>;
+  if (error) return <div className="text-red-500 p-4">{error}</div>;
+  if (!summary) return <div className="text-center p-4">No portfolio data available</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
@@ -90,31 +83,36 @@ export default function PortfolioDashboard() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-500 to-blue-500 px-6 py-3">
-              <h2 className="text-sm font-medium text-white uppercase tracking-wider">
-                Total Portfolio Value
-              </h2>
-            </div>
-            <div className="px-6 py-4">
-              <p className="text-4xl font-bold text-gray-900">
-                ${calculateTotalValue()}
-              </p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Total Value</h3>
+            <p className="text-3xl font-bold text-indigo-600">
+              ${summary.totalValue.toFixed(2)}
+            </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className={`px-6 py-3 ${totalGainLoss >= 0 ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-rose-500 to-red-500'}`}>
-              <h2 className="text-sm font-medium text-white uppercase tracking-wider">
-                Total Gain/Loss
-              </h2>
-            </div>
-            <div className="px-6 py-4">
-              <p className={`text-4xl font-bold ${totalGainLoss >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {totalGainLoss >= 0 ? '+' : '-'}${Math.abs(totalGainLoss)}
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Total Gain/Loss</h3>
+            <p className={`text-3xl font-bold ${summary.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${Math.abs(summary.totalGainLoss).toFixed(2)}
+              <span className="text-lg ml-1">
+                ({summary.gainLossPercentage >= 0 ? '+' : ''}{summary.gainLossPercentage.toFixed(2)}%)
+              </span>
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Top Performer</h3>
+            {summary.topPerformer ? (
+              <p className="text-3xl font-bold text-indigo-600">
+                {summary.topPerformer.ticker}
+                <span className="text-lg text-green-600 ml-2">
+                  +{summary.topPerformer.gainPercentage.toFixed(2)}%
+                </span>
               </p>
-            </div>
+            ) : (
+              <p className="text-gray-500">No top performer yet</p>
+            )}
           </div>
         </div>
       
@@ -140,4 +138,6 @@ export default function PortfolioDashboard() {
       </div>
     </div>
   );
-} 
+};
+
+export default PortfolioDashboard; 

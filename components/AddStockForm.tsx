@@ -1,178 +1,172 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { popularStocks } from '@/lib/stockSymbols';
+import React, { useState } from 'react';
+import { Stock, stockApi } from '../services/api';
 
 interface AddStockFormProps {
-  onAddStock: (stock: { symbol: string; shares: number; purchasePrice: number }) => void;
+  onAddStock: (newStock: Omit<Stock, 'currentPrice'>) => Promise<void>;
+  currentStockCount: number;
 }
 
-export default function AddStockForm({ onAddStock }: AddStockFormProps) {
-  const [symbol, setSymbol] = useState('');
-  const [shares, setShares] = useState('');
-  const [purchasePrice, setPurchasePrice] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState<typeof popularStocks>([]);
-  const suggestionRef = useRef<HTMLDivElement>(null);
+const AddStockForm: React.FC<AddStockFormProps> = ({ onAddStock, currentStockCount }) => {
+  const [formData, setFormData] = useState<Omit<Stock, 'id' | 'currentPrice' | 'totalValue'>>({
+    name: '',
+    ticker: '',
+    quantity: 1,
+    buyPrice: 0,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Handle clicks outside of suggestions dropdown
-    function handleClickOutside(event: MouseEvent) {
-      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
-      }
+  const validateForm = (): string | null => {
+    if (currentStockCount >= 5) {
+      return 'Maximum portfolio size (5 stocks) reached';
     }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSymbolChange = (value: string) => {
-    setSymbol(value);
-    if (value.length > 0) {
-      const filtered = popularStocks.filter(stock => 
-        stock.symbol.toLowerCase().includes(value.toLowerCase()) ||
-        stock.name.toLowerCase().includes(value.toLowerCase())
-      );
-      setSuggestions(filtered);
-      setShowSuggestions(true);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
+    if (!formData.name.trim()) {
+      return 'Company name is required';
     }
-  };
-
-  const handleSelectSuggestion = (selectedSymbol: string) => {
-    setSymbol(selectedSymbol);
-    setShowSuggestions(false);
+    if (!formData.ticker.trim()) {
+      return 'Ticker symbol is required';
+    }
+    if (!/^[A-Z]{1,5}$/.test(formData.ticker)) {
+      return 'Ticker must be 1-5 uppercase letters';
+    }
+    if (formData.quantity !== 1) {
+      return 'Quantity must be 1';
+    }
+    if (formData.buyPrice <= 0) {
+      return 'Buy price must be greater than 0';
+    }
+    return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+
     try {
-      if (!symbol || !shares || !purchasePrice) {
-        throw new Error('Please fill in all fields');
-      }
-
-      onAddStock({
-        symbol: symbol.toUpperCase(),
-        shares: Number(shares),
-        purchasePrice: Number(purchasePrice)
+      await onAddStock({
+        ...formData,
+        ticker: formData.ticker.toUpperCase(),
+        quantity: 1
       });
-
-      // Reset form
-      setSymbol('');
-      setShares('');
-      setPurchasePrice('');
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'An error occurred');
+      setFormData({
+        name: '',
+        ticker: '',
+        quantity: 1,
+        buyPrice: 0,
+      });
+    } catch (err) {
+      setError('Failed to add stock');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'quantity' || name === 'buyPrice' ? Number(value) : 
+              name === 'ticker' ? value.toUpperCase() : value,
+    }));
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="relative">
-          <label htmlFor="symbol" className="block text-sm font-medium text-gray-700 mb-2">
-            Stock Symbol
+    <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            Company Name
           </label>
           <input
             type="text"
-            id="symbol"
-            value={symbol}
-            onChange={(e) => handleSymbolChange(e.target.value)}
-            onFocus={() => symbol && setShowSuggestions(true)}
-            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            placeholder="e.g., AAPL"
-            disabled={isLoading}
-            autoComplete="off"
-          />
-          
-          {/* Suggestions Dropdown */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div 
-              ref={suggestionRef}
-              className="absolute z-10 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-auto"
-            >
-              {suggestions.map((stock) => (
-                <button
-                  key={stock.symbol}
-                  type="button"
-                  onClick={() => handleSelectSuggestion(stock.symbol)}
-                  className="w-full px-4 py-2 text-left hover:bg-indigo-50 flex items-center space-x-3"
-                >
-                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white font-medium">
-                    {stock.symbol.slice(0, 2)}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-900">{stock.symbol}</div>
-                    <div className="text-sm text-gray-500">{stock.name}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="shares" className="block text-sm font-medium text-gray-700 mb-2">
-            Number of Shares
-          </label>
-          <input
-            type="number"
-            id="shares"
-            value={shares}
-            onChange={(e) => setShares(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            min="0"
-            step="1"
-            placeholder="0"
-            disabled={isLoading}
+            id="name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            required
+            maxLength={100}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black"
           />
         </div>
 
         <div>
-          <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
-            Purchase Price ($)
+          <label htmlFor="ticker" className="block text-sm font-medium text-gray-700">
+            Ticker Symbol (1-5 letters)
+          </label>
+          <input
+            type="text"
+            id="ticker"
+            name="ticker"
+            value={formData.ticker}
+            onChange={handleChange}
+            required
+            maxLength={5}
+            pattern="[A-Z]{1,5}"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black uppercase"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">
+            Quantity (fixed at 1)
           </label>
           <input
             type="number"
-            id="price"
-            value={purchasePrice}
-            onChange={(e) => setPurchasePrice(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            min="0"
+            id="quantity"
+            name="quantity"
+            value={1}
+            readOnly
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black bg-gray-100"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="buyPrice" className="block text-sm font-medium text-gray-700">
+            Buy Price ($)
+          </label>
+          <input
+            type="number"
+            id="buyPrice"
+            name="buyPrice"
+            value={formData.buyPrice}
+            onChange={handleChange}
+            min="0.01"
             step="0.01"
-            placeholder="0.00"
-            disabled={isLoading}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black"
           />
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-medium rounded-xl
-          hover:from-indigo-700 hover:to-blue-700 focus:ring-4 focus:ring-indigo-300 transition-all disabled:opacity-50
-          disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-      >
-        {isLoading ? (
-          <>
-            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Adding...</span>
-          </>
-        ) : (
-          <span>Add Stock</span>
-        )}
-      </button>
+      {error && (
+        <div className="text-red-600 text-sm mt-2">{error}</div>
+      )}
+
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-gray-600">
+          {currentStockCount}/5 stocks in portfolio
+        </div>
+        <button
+          type="submit"
+          disabled={loading || currentStockCount >= 5}
+          className={`inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+            (loading || currentStockCount >= 5) ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {loading ? 'Adding...' : 'Add Stock'}
+        </button>
+      </div>
     </form>
   );
-} 
+};
+
+export default AddStockForm; 
