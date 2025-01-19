@@ -180,14 +180,5 @@ npm run lint
 Create a `.env` file in the root directory:
 
 ```env
-ALPHA_VANTAGE_API_KEY=your_api_key
 REACT_APP_BACKEND_URL=http://localhost:8080/api
-```
-
-For the backend, configure in `application.properties`:
-
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/portfolio_db
-spring.datasource.username=root
-spring.datasource.password=yourpassword
 ```
